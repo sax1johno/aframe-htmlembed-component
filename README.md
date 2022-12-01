@@ -1,4 +1,15 @@
 ﻿
+# HTML Embed Component A-Frame 1.3.0 ready
+
+This package is a fork of the https://github.com/supereggbert/aframe-htmlembed-component component.
+
+The original component unfortunately looks abandoned and did not work with aframe 1.3.0. The entity was not displayed in the scene, which was accompanied by a warning in the console:
+
+* Firefox: "WebGL warning: texSubImage: Offset+size must be <= the size of the existing specified image."
+* Chrome: "[.WebGL-00005B4402385500] GL_INVALID_VALUE: Offset overflows texture dimensions."
+
+This package has been modified to fix the above problem. There is also pull-request to source project: https://github.com/supereggbert/aframe-htmlembed-component/pull/35
+
 # HTML Embed Component
 
 HTML Embed is a component created for [A-Frame](https://aframe.io/). The HTML Embed component allows for arbitrary html to be inserted into your aframe scene. It allows you to update the display within A-Frame simply by manipulating the DOM as you normally would. 
