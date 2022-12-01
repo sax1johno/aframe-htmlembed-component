@@ -1,12 +1,21 @@
 {
   "name": "aframe-htmlembed-component-1.3.0-ready",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "HTML Embed is a component created for A-Frame. The HTML Embed component allows for arbitrary html to be inserted into your aframe scene. It allows you to update the display within A-Frame simply by manipulating the DOM as you normally would.",
   "main": "dist/build.js",
   "scripts": {
     "build": "rm -fR dist/* && webpack --mode=production",
     "start": "webpack-dev-server --mode development --open-page examples/"
   },
+  "keywords": [
+    "aframe",
+    "a-frame",
+    "vr",
+    "threejs",
+    "aframe-component",
+    "a-frame-component",
+    "webvr"
+  ],
   "author": "supereggbert",
   "license": "MIT",
   "devDependencies": {
