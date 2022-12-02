@@ -17,7 +17,7 @@ AFRAME.registerComponent('htmlembed', {
     this._onMouseDown = AFRAME.utils.bind(this._onMouseDown, this);
     this._onMouseUp = AFRAME.utils.bind(this._onMouseUp, this);
 
-    var htmlcanvas = new HTMLCanvas(this.el, () => {
+    let htmlcanvas = new HTMLCanvas(this.el, () => {
       if (texture) texture.needsUpdate = true;
     }, (event, data) => {
       switch (event) {
@@ -39,7 +39,7 @@ AFRAME.registerComponent('htmlembed', {
       }
     });
     this.htmlcanvas = htmlcanvas;
-    var texture = new THREE.Texture(htmlcanvas.canvas);
+    let texture = new THREE.Texture(htmlcanvas.canvas);
     texture.minFilter = THREE.LinearFilter;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -47,8 +47,8 @@ AFRAME.registerComponent('htmlembed', {
       map: texture,
       transparent: true
     });
-    var geometry = new THREE.PlaneGeometry();
-    var screen = new THREE.Mesh(geometry, material);
+    let geometry = new THREE.PlaneGeometry();
+    let screen = new THREE.Mesh(geometry, material);
     this.el.setObject3D('screen', screen);
     this.screen = screen;
 
@@ -105,16 +105,16 @@ AFRAME.registerComponent('htmlembed', {
       return;
     }
 
-    var intersection = this.raycaster.components.raycaster.getIntersection(this.el);
+    let intersection = this.raycaster.components.raycaster.getIntersection(this.el);
     if (!intersection) {
       return;
     }
-    var localPoint = intersection.point;
+    let localPoint = intersection.point;
     this.el.object3D.worldToLocal(localPoint);
-    var w = this.width / 2;
-    var h = this.height / 2;
-    var x = Math.round((localPoint.x + w) / this.width * this.htmlcanvas.canvas.width);
-    var y = Math.round((1 - (localPoint.y + h) / this.height) * this.htmlcanvas.canvas.height);
+    let w = this.width / 2;
+    let h = this.height / 2;
+    let x = Math.round((localPoint.x + w) / this.width * this.htmlcanvas.canvas.width);
+    let y = Math.round((1 - (localPoint.y + h) / this.height) * this.htmlcanvas.canvas.height);
     if (this.lastX != x || this.lastY != y) {
       this.htmlcanvas.mousemove(x, y);
     }
@@ -122,6 +122,9 @@ AFRAME.registerComponent('htmlembed', {
     this.lastY = y;
   },
   remove: function() {
+    console.log('remove');
     this.el.removeObject3D('screen');
+    this.htmlcanvas.cleanUp();
+    this.htmlcanvas = null;
   }
 });
