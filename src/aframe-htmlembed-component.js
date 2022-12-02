@@ -12,6 +12,11 @@ AFRAME.registerComponent('htmlembed', {
     }
   },
   init: function() {
+    this._onRaycasterIntersected = AFRAME.utils.bind(this._onRaycasterIntersected, this);
+    this._onRaycasterIntersectedCleared = AFRAME.utils.bind(this._onRaycasterIntersectedCleared, this);
+    this._onMouseDown = AFRAME.utils.bind(this._onMouseDown, this);
+    this._onMouseUp = AFRAME.utils.bind(this._onMouseUp, this);
+
     var htmlcanvas = new HTMLCanvas(this.el, () => {
       if (texture) texture.needsUpdate = true;
     }, (event, data) => {
@@ -47,28 +52,40 @@ AFRAME.registerComponent('htmlembed', {
     this.el.setObject3D('screen', screen);
     this.screen = screen;
 
-    this.el.addEventListener('raycaster-intersected', evt => {
-      this.raycaster = evt.detail.el;
-    });
-    this.el.addEventListener('raycaster-intersected-cleared', evt => {
-      this.htmlcanvas.clearHover();
-      this.raycaster = null;
-    });
-    this.el.addEventListener('mousedown', evt => {
-      if (evt instanceof CustomEvent) {
-        this.htmlcanvas.mousedown(this.lastX, this.lastY);
-      } else {
-        evt.stopPropagation();
-      }
-    });
-    this.el.addEventListener('mouseup', evt => {
-      if (evt instanceof CustomEvent) {
-        this.htmlcanvas.mouseup(this.lastX, this.lastY);
-      } else {
-        evt.stopPropagation();
-      }
-    });
     this.resize();
+  },
+  play: function () {
+    this.el.addEventListener('raycaster-intersected', this._onRaycasterIntersected);
+    this.el.addEventListener('raycaster-intersected-cleared', this._onRaycasterIntersectedCleared);
+    this.el.addEventListener('mousedown', this._onMouseDown);
+    this.el.addEventListener('mouseup', this._onMouseUp);
+  },
+  pause: function() {
+    this.el.removeEventListener('raycaster-intersected', this._onRaycasterIntersected);
+    this.el.removeEventListener('raycaster-intersected-cleared', this._onRaycasterIntersectedCleared);
+    this.el.removeEventListener('mousedown', this._onMouseDown);
+    this.el.removeEventListener('mouseup', this._onMouseUp);
+  },
+  _onRaycasterIntersected: function(evt) {
+    this.raycaster = evt.detail.el;
+  },
+  _onRaycasterIntersectedCleared: function(evt) {
+    this.htmlcanvas.clearHover();
+    this.raycaster = null;
+  },
+  _onMouseDown: function(evt) {
+    if (evt instanceof CustomEvent) {
+      this.htmlcanvas.mousedown(this.lastX, this.lastY);
+    } else {
+      evt.stopPropagation();
+    }
+  },
+  _onMouseUp: function(evt) {
+    if (evt instanceof CustomEvent) {
+      this.htmlcanvas.mouseup(this.lastX, this.lastY);
+    } else {
+      evt.stopPropagation();
+    }
   },
   resize() {
     this.width = this.htmlcanvas.width / this.data.ppu;
