@@ -405,15 +405,19 @@ class HTMLCanvas {
     var opens = [];
     var closes = [];
     var parent = this.html.parentNode;
-    do {
-      var tag = parent.tagName.toLowerCase();
-      if (tag.substr(0, 2) == 'a-') tag = 'div'; // We need to replace A-Frame tags with div as they're not valid xhtml so mess up the rendering of images
-      var open = '<' + (tag == 'body' ? 'body xmlns="http://www.w3.org/1999/xhtml"' : tag) + ' style="transform: none;left: 0;top: 0;position:static;display: block" class="' + parent.className + '"' + (parent.id ? ' id="' + parent.id + '"' : '') + '>';
-      opens.unshift(open);
-      var close = '</' + tag + '>';
-      closes.push(close);
-      if (tag == 'body') break;
-    } while (parent = parent.parentNode)
+    
+    if (!!parent) {
+      do {
+        var tag = parent.tagName.toLowerCase();
+        if (tag.substr(0, 2) == 'a-') tag = 'div'; // We need to replace A-Frame tags with div as they're not valid xhtml so mess up the rendering of images
+        var open = '<' + (tag == 'body' ? 'body xmlns="http://www.w3.org/1999/xhtml"' : tag) + ' style="transform: none;left: 0;top: 0;position:static;display: block" class="' + parent.className + '"' + (parent.id ? ' id="' + parent.id + '"' : '') + '>';
+        opens.unshift(open);
+        var close = '</' + tag + '>';
+        closes.push(close);
+        if (tag == 'body') break;
+      } while (parent = parent.parentNode)
+    }
+    
     return [opens.join(''), closes.join('')];
   }
 
