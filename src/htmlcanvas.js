@@ -13,6 +13,10 @@ class HTMLCanvas {
     this.updateCallback = updateCallback;
     this.eventCallback = eventCallback;
 
+    this.onImageLoad = this.onImageLoad.bind(this);
+    this.onMouseMoveHtml = this.onMouseMoveHtml.bind(this);
+    this.onHashChangeEvent = this.onHashChangeEvent.bind(this);
+
     // Create the canvas to be drawn to
     this.canvas = document.createElement("canvas");
     this.ctx = this.canvas.getContext("2d");
@@ -29,17 +33,8 @@ class HTMLCanvas {
     this.html.style.overflow = 'hidden';
 
 
-    // We have to stop propergation of the mouse at the root of the embed HTML otherwise it may effect other elements of the page
-    this.mousemovehtml = (e) => {
-      e.stopPropagation();
-    }
-    this.html.addEventListener('mousemove', this.mousemovehtml);
-
-    // We need to change targethack when windows has location changes
-    this.hashChangeEvent = () => {
-      this.hashChanged();
-    }
-    window.addEventListener('hashchange', this.hashChangeEvent, false);
+    this.html.addEventListener('mousemove', this.onMouseMoveHtml);
+    window.addEventListener('hashchange', this.onHashChangeEvent, false);
 
 
     this.overElements = []; // Element currently in the hover state
@@ -49,9 +44,7 @@ class HTMLCanvas {
     // Image used to draw SVG to the canvas element
     this.img = new Image;
     // When image content has changed render it to the canvas
-    this.img.addEventListener("load", () => {
-      this.render();
-    });
+    this.img.addEventListener("load", this.onImageLoad);
 
     // Add css hacks to current styles to ensure that the styles can be rendered to canvas
     this.csshack();
@@ -105,6 +98,18 @@ class HTMLCanvas {
     this.hashChanged();
   }
 
+  onImageLoad() {
+    this.render();
+  }
+  /**  We have to stop propergation of the mouse at the root of the embed HTML otherwise it may effect other elements of the page */
+  onMouseMoveHtml(e) {
+    e.stopPropagation();
+  }
+  /** We need to change targethack when windows has location changes */
+  onHashChangeEvent() {
+    this.hashChanged();
+  }
+
   // Forces a complete rerender
   forceRender() {
     // Clear any class hash as this may have changed
@@ -139,29 +144,38 @@ class HTMLCanvas {
     this.observer.disconnect();
 
     // Remove event listeners
-    window.removeEventListener('hashchange', this.hashChangeEvent, );
-    this.html.addEventListener('mousemove', this.mousrmovehtml);
+    window.removeEventListener('hashchange', this.onHashChangeEvent );
+    this.html.removeEventListener('mousemove', this.onMouseMoveHtml);
+    this.img.removeEventListener("load", this.onImageLoad);
+
+    this.canvas.remove();
   }
+
+  static regexpHover = new RegExp(":hover", "g");
+  static regexpActive = new RegExp(":active", "g");
+  static regexpFocus = new RegExp(":focus", "g");
+  static regexpTarget = new RegExp(":target", "g");
 
   // Add hack css rules to the page so they will update the css styles of the embed html
   csshack() {
     let sheets = document.styleSheets;
+    console.log('sheets.length', sheets.length);
     for (let i = 0; i < sheets.length; i++) {
       try {
         let rules = sheets[i].cssRules;
         let toadd = [];
         for (let j = 0; j < rules.length; j++) {
           if (rules[j].cssText.indexOf(':hover') > -1) {
-            toadd.push(rules[j].cssText.replace(new RegExp(":hover", "g"), ".hoverhack"))
+            toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpHover, ".hoverhack"))
           }
           if (rules[j].cssText.indexOf(':active') > -1) {
-            toadd.push(rules[j].cssText.replace(new RegExp(":active", "g"), ".activehack"))
+            toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpActive, ".activehack"))
           }
           if (rules[j].cssText.indexOf(':focus') > -1) {
-            toadd.push(rules[j].cssText.replace(new RegExp(":focus", "g"), ".focushack"))
+            toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpFocus, ".focushack"))
           }
           if (rules[j].cssText.indexOf(':target') > -1) {
-            toadd.push(rules[j].cssText.replace(new RegExp(":target", "g"), ".targethack"))
+            toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpTarget, ".targethack"))
           }
           let idx = toadd.indexOf(rules[j].cssText);
           if (idx > -1) {
@@ -266,10 +280,16 @@ class HTMLCanvas {
     let elements = Array.from(document.querySelectorAll("style, link[type='text/css'],link[rel='stylesheet']"));
     let promises = [];
     for (let i = 0; i < elements.length; i++) {
+      
+      //dbg
+      let startMs = new Date().getMilliseconds();
+
       let element = elements[i];
       if (this.cssgenerated.indexOf(element) == -1) {
         // Make sure all css hacks have been applied to the page
+        console.log(`before csshack: ${new Date().getMilliseconds() - startMs} ms`);
         this.csshack();
+        console.log(`after csshack: ${new Date().getMilliseconds() - startMs} ms`);
         // Get embed version of style elements
         let idx = this.cssgenerated.length;
         this.cssgenerated.push(element);
@@ -296,7 +316,9 @@ class HTMLCanvas {
           );
         }
       }
+
     }
+
     return Promise.all(promises);
   }
 
