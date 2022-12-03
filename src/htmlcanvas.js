@@ -141,7 +141,6 @@ class HTMLCanvas {
 
   // Cleans up all eventlistners, etc when they are no longer needed
   cleanUp() {
-    console.log('cleanUp');
     // Stop observing for changes
     this.observer.disconnect();
 
@@ -160,45 +159,44 @@ class HTMLCanvas {
 
   // Add hack css rules to the page so they will update the css styles of the embed html
   csshack() {
-    //dbg
-    let startMs = new Date().getMilliseconds();
-
     let sheets = document.styleSheets;
-    console.log('sheets.length', sheets.length)
     for (let i = 0; i < sheets.length; i++) {
-      try {
-        //dbg
-        //console.log(`before csshack: ${new Date().getMilliseconds() - startMs} ms`);
-        let rules = sheets[i].cssRules;
-        let toadd = [];
-        for (let j = 0; j < rules.length; j++) {
-          if (rules[j].cssText.indexOf(':hover') > -1) {
-            toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpHover, ".hoverhack"))
+
+      let hacksAlreadyApplied = !!Array.from(sheets[i].cssRules).find(r => {
+        return !!r.selectorText && (r.selectorText.indexOf(".hoverhack") > -1
+          || r.selectorText.indexOf(".activehack") > -1
+          || r.selectorText.indexOf(".focushack") > -1
+          || r.selectorText.indexOf(".targethack") > -1);
+      });
+
+      if (!hacksAlreadyApplied) {
+        try {
+          let rules = sheets[i].cssRules;
+          let toadd = [];
+          for (let j = 0; j < rules.length; j++) {
+            if (rules[j].cssText.indexOf(':hover') > -1) {
+              toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpHover, ".hoverhack"))
+            }
+            if (rules[j].cssText.indexOf(':active') > -1) {
+              toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpActive, ".activehack"))
+            }
+            if (rules[j].cssText.indexOf(':focus') > -1) {
+              toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpFocus, ".focushack"))
+            }
+            if (rules[j].cssText.indexOf(':target') > -1) {
+              toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpTarget, ".targethack"))
+            }
+            let idx = toadd.indexOf(rules[j].cssText);
+            if (idx > -1) {
+              toadd.splice(idx, 1);
+            }
           }
-          if (rules[j].cssText.indexOf(':active') > -1) {
-            toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpActive, ".activehack"))
+          for (let j = 0; j < toadd.length; j++) {
+            sheets[i].insertRule(toadd[j]);
           }
-          if (rules[j].cssText.indexOf(':focus') > -1) {
-            toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpFocus, ".focushack"))
-          }
-          if (rules[j].cssText.indexOf(':target') > -1) {
-            toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpTarget, ".targethack"))
-          }
-          let idx = toadd.indexOf(rules[j].cssText);
-          if (idx > -1) {
-            toadd.splice(idx, 1);
-          }
-        }
-        for (let j = 0; j < toadd.length; j++) {
-          sheets[i].insertRule(toadd[j]);
-        }
-        //dbg
-        let endMs = new Date().getMilliseconds() - startMs;
-        if (endMs > 5) {
-          console.log(`csshack cycle ms: ${endMs}, i: ${i}`);
-        }
-        //console.log(`after csshack: ${endMs} ms`);
-      } catch (e) {}
+        } catch (e) {}
+      }
+      
     }
   }
 
@@ -824,7 +822,7 @@ class HTMLCanvas {
 
         for (let i = 0; i < this.overElements.length; i++) {
           let element = this.overElements[i];
-          if (parents.indexOf(element) == -1) {
+          if (!!element && parents.indexOf(element) == -1) {
             if (element.classList) element.classList.remove("hoverhack");
             element.dispatchEvent(new MouseEvent('mouseleave', mouseStateHover));
             this.overElements.splice(i, 1);
@@ -832,6 +830,7 @@ class HTMLCanvas {
           }
         }
       } else {
+        let element;
         while (element = this.overElements.pop()) {
           if (element.classList) element.classList.remove("hoverhack");
           element.dispatchEvent(new MouseEvent('mouseout', mouseState));
