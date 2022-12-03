@@ -91,14 +91,16 @@ class HTMLCanvas {
     observer.observe(this.html, config);
     this.observer = observer;
 
-    this.cssgenerated = []; // Remeber what css sheets have already been passed
-    this.cssembed = []; // The text of the css to included in the SVG to render
-
     this.serializer = new XMLSerializer();
 
     // Trigger an initially hash change to set up targethack classes
     this.hashChanged();
   }
+
+  /** Remeber what css sheets have already been passed */
+  static cssgenerated = [];
+  /** The text of the css to included in the SVG to render */
+  static cssembed = [];
 
   onImageLoad() {
     this.render();
@@ -159,6 +161,8 @@ class HTMLCanvas {
 
   // Add hack css rules to the page so they will update the css styles of the embed html
   csshack() {
+    let msStart = new Date().getMilliseconds();
+    console.log('csshack');
     let sheets = document.styleSheets;
     for (let i = 0; i < sheets.length; i++) {
 
@@ -287,23 +291,24 @@ class HTMLCanvas {
 
   // Generate the embed page CSS from all the page styles
   generatePageCSS() {
+    console.log('generatePageCSS');
     // Fine all elements we are intrested in
     // let elements = Array.from(document.querySelectorAll(`style:not([${CSSHACKED_ATTR}]) , link[type='text/css']:not([${CSSHACKED_ATTR}]), link[rel='stylesheet']:not([${CSSHACKED_ATTR}])`));
     let elements = Array.from(document.querySelectorAll(`style , link[type='text/css'], link[rel='stylesheet']`));
     let promises = [];
     for (let i = 0; i < elements.length; i++) {
       let element = elements[i];
-      if (this.cssgenerated.indexOf(element) == -1) {
+      if (HTMLCanvas.cssgenerated.indexOf(element) == -1) {
         // Make sure all css hacks have been applied to the page
         this.csshack();
         // Get embed version of style elements
-        let idx = this.cssgenerated.length;
-        this.cssgenerated.push(element);
+        let idx = HTMLCanvas.cssgenerated.length;
+        HTMLCanvas.cssgenerated.push(element);
         if (element.tagName == "STYLE") {
           promises.push(
             this.embedCss(window.location, element.innerHTML).then(((element, idx) => {
               return css => {
-                this.cssembed[idx] = css;
+                HTMLCanvas.cssembed[idx] = css;
               }
             })(element, idx))
           );
@@ -314,7 +319,7 @@ class HTMLCanvas {
               let css = new TextDecoder("utf-8").decode(xhr.response);
               return this.embedCss(window.location, css).then(((element, idx) => {
                 return css => {
-                  this.cssembed[idx] = css;
+                  HTMLCanvas.cssembed[idx] = css;
                 }
               })(element, idx))
             };
@@ -480,7 +485,7 @@ class HTMLCanvas {
       }
       let docString = this.serializer.serializeToString(this.html);
       let parent = this.getParents();
-      docString = '<svg width="' + this.width + '" height="' + this.height + '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[a[href]{color:#0000EE;text-decoration:underline;}' + this.cssembed.join('') + ']]></style></defs><foreignObject x="0" y="0" width="' + this.width + '" height="' + this.height + '">' + parent[0] + docString + parent[1] + '</foreignObject></svg>';
+      docString = '<svg width="' + this.width + '" height="' + this.height + '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[a[href]{color:#0000EE;text-decoration:underline;}' + HTMLCanvas.cssembed.join('') + ']]></style></defs><foreignObject x="0" y="0" width="' + this.width + '" height="' + this.height + '">' + parent[0] + docString + parent[1] + '</foreignObject></svg>';
       this.img.src = "data:image/svg+xml;utf8," + encodeURIComponent(docString);
       // Hide the html after processing
       this.html.style.display = 'none';
