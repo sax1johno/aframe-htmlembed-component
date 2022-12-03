@@ -12,6 +12,11 @@ This package has been modified to fix the above problem. There is also pull-requ
 
 Repo: https://github.com/arkonsolutions/aframe-htmlembed-component-1.3.0-ready
 
+## What's new?
+* The component works with AFRAME version 1.3.0.
+* Fixed an issue with performance degradation when multiple menus are added to a scene. Or when adding and hiding the same menu many times.
+* Improved mechanism for releasing unused resources.
+
 # HTML Embed Component
 
 HTML Embed is a component created for [A-Frame](https://aframe.io/). The HTML Embed component allows for arbitrary html to be inserted into your aframe scene. It allows you to update the display within A-Frame simply by manipulating the DOM as you normally would. 

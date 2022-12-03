@@ -6,8 +6,6 @@
   head.insertBefore(inputStyles, head.firstChild);
 })();
 
-const CSSHACKED_ATTR = "data-htmlembed-css";
-
 class HTMLCanvas {
   constructor(html, updateCallback, eventCallback) {
     if (!html) throw "Container Element is Required";
@@ -161,8 +159,6 @@ class HTMLCanvas {
 
   // Add hack css rules to the page so they will update the css styles of the embed html
   csshack() {
-    let msStart = new Date().getMilliseconds();
-    console.log('csshack');
     let sheets = document.styleSheets;
     for (let i = 0; i < sheets.length; i++) {
 
@@ -291,9 +287,7 @@ class HTMLCanvas {
 
   // Generate the embed page CSS from all the page styles
   generatePageCSS() {
-    console.log('generatePageCSS');
     // Fine all elements we are intrested in
-    // let elements = Array.from(document.querySelectorAll(`style:not([${CSSHACKED_ATTR}]) , link[type='text/css']:not([${CSSHACKED_ATTR}]), link[rel='stylesheet']:not([${CSSHACKED_ATTR}])`));
     let elements = Array.from(document.querySelectorAll(`style , link[type='text/css'], link[rel='stylesheet']`));
     let promises = [];
     for (let i = 0; i < elements.length; i++) {
@@ -327,8 +321,6 @@ class HTMLCanvas {
           );
         }
       }
-
-      // element.setAttribute(CSSHACKED_ATTR, "");
     }
 
     return Promise.all(promises);
