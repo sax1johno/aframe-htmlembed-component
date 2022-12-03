@@ -6,6 +6,8 @@
   head.insertBefore(inputStyles, head.firstChild);
 })();
 
+const CSSHACKED_ATTR = "data-htmlembed-css";
+
 class HTMLCanvas {
   constructor(html, updateCallback, eventCallback) {
     if (!html) throw "Container Element is Required";
@@ -158,10 +160,15 @@ class HTMLCanvas {
 
   // Add hack css rules to the page so they will update the css styles of the embed html
   csshack() {
+    //dbg
+    let startMs = new Date().getMilliseconds();
+
     let sheets = document.styleSheets;
-    console.log('sheets.length', sheets.length);
+    console.log('sheets.length', sheets.length)
     for (let i = 0; i < sheets.length; i++) {
       try {
+        //dbg
+        //console.log(`before csshack: ${new Date().getMilliseconds() - startMs} ms`);
         let rules = sheets[i].cssRules;
         let toadd = [];
         for (let j = 0; j < rules.length; j++) {
@@ -185,6 +192,12 @@ class HTMLCanvas {
         for (let j = 0; j < toadd.length; j++) {
           sheets[i].insertRule(toadd[j]);
         }
+        //dbg
+        let endMs = new Date().getMilliseconds() - startMs;
+        if (endMs > 5) {
+          console.log(`csshack cycle ms: ${endMs}, i: ${i}`);
+        }
+        //console.log(`after csshack: ${endMs} ms`);
       } catch (e) {}
     }
   }
@@ -233,10 +246,10 @@ class HTMLCanvas {
       let promises = [];
 
       // Add hacks to get selectors working on img
-      css = css.replace(new RegExp(":hover", "g"), ".hoverhack");
-      css = css.replace(new RegExp(":active", "g"), ".activehack");
-      css = css.replace(new RegExp(":focus", "g"), ".focushack");
-      css = css.replace(new RegExp(":target", "g"), ".targethack");
+      css = css.replace(HTMLCanvas.regexpHover, ".hoverhack");
+      css = css.replace(HTMLCanvas.regexpActive, ".activehack");
+      css = css.replace(HTMLCanvas.regexpFocus, ".focushack");
+      css = css.replace(HTMLCanvas.regexpTarget, ".targethack");
 
       // Replace all urls in the css
       const regEx = RegExp(/url\((?!['"]?(?:data):)['"]?([^'"\)]*)['"]?\)/gi);
@@ -277,19 +290,14 @@ class HTMLCanvas {
   // Generate the embed page CSS from all the page styles
   generatePageCSS() {
     // Fine all elements we are intrested in
-    let elements = Array.from(document.querySelectorAll("style, link[type='text/css'],link[rel='stylesheet']"));
+    // let elements = Array.from(document.querySelectorAll(`style:not([${CSSHACKED_ATTR}]) , link[type='text/css']:not([${CSSHACKED_ATTR}]), link[rel='stylesheet']:not([${CSSHACKED_ATTR}])`));
+    let elements = Array.from(document.querySelectorAll(`style , link[type='text/css'], link[rel='stylesheet']`));
     let promises = [];
     for (let i = 0; i < elements.length; i++) {
-      
-      //dbg
-      let startMs = new Date().getMilliseconds();
-
       let element = elements[i];
       if (this.cssgenerated.indexOf(element) == -1) {
         // Make sure all css hacks have been applied to the page
-        console.log(`before csshack: ${new Date().getMilliseconds() - startMs} ms`);
         this.csshack();
-        console.log(`after csshack: ${new Date().getMilliseconds() - startMs} ms`);
         // Get embed version of style elements
         let idx = this.cssgenerated.length;
         this.cssgenerated.push(element);
@@ -317,6 +325,7 @@ class HTMLCanvas {
         }
       }
 
+      // element.setAttribute(CSSHACKED_ATTR, "");
     }
 
     return Promise.all(promises);

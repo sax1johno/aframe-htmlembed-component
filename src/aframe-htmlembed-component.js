@@ -122,7 +122,6 @@ AFRAME.registerComponent('htmlembed', {
     this.lastY = y;
   },
   remove: function() {
-    console.log('remove');
     this.el.removeObject3D('screen');
     this.htmlcanvas.cleanUp();
     this.htmlcanvas = null;
