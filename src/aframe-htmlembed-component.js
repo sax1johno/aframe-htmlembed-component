@@ -4,7 +4,18 @@ if (typeof AFRAME === 'undefined') {
 
 const HTMLCanvas = require('./htmlcanvas.js');
 
-AFRAME.registerComponent('htmlembed', {
+const IDENTIFIER = "htmlembed";
+
+AFRAME.registerSystem(IDENTIFIER, {
+  init: function() {
+    HTMLCanvas.generatePageCSS();
+  },
+  remove: function() {
+    HTMLCanvas.cssgenerated = [];
+    HTMLCanvas.cssembed = [];
+  }
+});
+AFRAME.registerComponent(IDENTIFIER, {
   schema: {
     ppu: {
       type: 'number',

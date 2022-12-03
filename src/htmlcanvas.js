@@ -47,7 +47,7 @@ class HTMLCanvas {
     this.img.addEventListener("load", this.onImageLoad);
 
     // Add css hacks to current styles to ensure that the styles can be rendered to canvas
-    this.csshack();
+    HTMLCanvas.csshack();
 
     // Timer used to limit the re-renders due to DOM updates
     let timer;
@@ -157,8 +157,8 @@ class HTMLCanvas {
   static regexpFocus = new RegExp(":focus", "g");
   static regexpTarget = new RegExp(":target", "g");
 
-  // Add hack css rules to the page so they will update the css styles of the embed html
-  csshack() {
+  /** Add hack css rules to the page so they will update the css styles of the embed html */
+  static csshack() {
     let sheets = document.styleSheets;
     for (let i = 0; i < sheets.length; i++) {
 
@@ -225,8 +225,8 @@ class HTMLCanvas {
     return el.classCache[el.className];
   }
 
-  // Does what it says on the tin
-  arrayBufferToBase64(bytes) {
+  /** Does what it says on the tin */
+  static arrayBufferToBase64(bytes) {
     let binary = '';
     let len = bytes.byteLength;
     for (let i = 0; i < len; i++) {
@@ -235,10 +235,13 @@ class HTMLCanvas {
     return window.btoa(binary);
   }
 
-  // Get an embeded version of the css for use in img svg
-  // url - baseref of css so we know where to look up resourses
-  // css - string content of the css
-  embedCss(url, css) {
+  /**
+   * Get an embeded version of the css for use in img svg
+   * @param {*} url baseref of css so we know where to look up resourses
+   * @param {*} css string content of the css
+   * @returns 
+   */
+  static embedCss(url, css) {
     return new Promise(resolve => {
       let found;
       let promises = [];
@@ -253,7 +256,7 @@ class HTMLCanvas {
       const regEx = RegExp(/url\((?!['"]?(?:data):)['"]?([^'"\)]*)['"]?\)/gi);
       while (found = regEx.exec(css)) {
         promises.push(
-          this.getDataURL(new URL(found[1], url)).then(((found) => {
+          HTMLCanvas.getDataURL(new URL(found[1], url)).then(((found) => {
             return url => {
               css = css.replace(found[1], url);
             };
@@ -266,8 +269,8 @@ class HTMLCanvas {
     });
   }
 
-  // Does what is says on the tin
-  getURL(url) {
+  /** Does what is says on the tin */
+  static getURL(url) {
     url = (new URL(url, window.location)).href;
     return new Promise(resolve => {
       let xhr = new XMLHttpRequest();
@@ -286,7 +289,7 @@ class HTMLCanvas {
   }
 
   // Generate the embed page CSS from all the page styles
-  generatePageCSS() {
+  static generatePageCSS() {
     // Fine all elements we are intrested in
     let elements = Array.from(document.querySelectorAll(`style , link[type='text/css'], link[rel='stylesheet']`));
     let promises = [];
@@ -294,13 +297,13 @@ class HTMLCanvas {
       let element = elements[i];
       if (HTMLCanvas.cssgenerated.indexOf(element) == -1) {
         // Make sure all css hacks have been applied to the page
-        this.csshack();
+        HTMLCanvas.csshack();
         // Get embed version of style elements
         let idx = HTMLCanvas.cssgenerated.length;
         HTMLCanvas.cssgenerated.push(element);
         if (element.tagName == "STYLE") {
           promises.push(
-            this.embedCss(window.location, element.innerHTML).then(((element, idx) => {
+            HTMLCanvas.embedCss(window.location, element.innerHTML).then(((element, idx) => {
               return css => {
                 HTMLCanvas.cssembed[idx] = css;
               }
@@ -308,10 +311,10 @@ class HTMLCanvas {
           );
         } else {
           // Get embeded version of externally link stylesheets
-          promises.push(this.getURL(element.getAttribute("href")).then(((idx) => {
+          promises.push(HTMLCanvas.getURL(element.getAttribute("href")).then(((idx) => {
             return xhr => {
               let css = new TextDecoder("utf-8").decode(xhr.response);
-              return this.embedCss(window.location, css).then(((element, idx) => {
+              return HTMLCanvas.embedCss(window.location, css).then(((element, idx) => {
                 return css => {
                   HTMLCanvas.cssembed[idx] = css;
                 }
@@ -326,15 +329,15 @@ class HTMLCanvas {
     return Promise.all(promises);
   }
 
-  // Generate and returns a dataurl for the given url
-  getDataURL(url) {
+  /** Generate and returns a dataurl for the given url */
+  static getDataURL(url) {
     return new Promise(resolve => {
-      this.getURL(url).then(xhr => {
+      HTMLCanvas.getURL(url).then(xhr => {
         let arr = new Uint8Array(xhr.response);
         let contentType = xhr.getResponseHeader("Content-Type").split(";")[0];
         if (contentType == "text/css") {
           let css = new TextDecoder("utf-8").decode(arr);
-          this.embedCss(url, css).then((css) => {
+          HTMLCanvas.embedCss(url, css).then((css) => {
             let base64 = window.btoa(css);
             if (base64.length > 0) {
               let dataURL = 'data:' + contentType + ';base64,' + base64;
@@ -344,7 +347,7 @@ class HTMLCanvas {
             }
           });
         } else {
-          let b64 = this.arrayBufferToBase64(arr);
+          let b64 = HTMLCanvas.arrayBufferToBase64(arr);
           let dataURL = 'data:' + contentType + ';base64,' + b64;
           resolve(dataURL);
         }
@@ -361,7 +364,7 @@ class HTMLCanvas {
       // convert and xlink:href to standard href
       let link = elements[i].getAttributeNS("http://www.w3.org/1999/xlink", "href");
       if (link) {
-        promises.push(this.getDataURL(link).then(((element) => {
+        promises.push(HTMLCanvas.getDataURL(link).then(((element) => {
           return dataURL => {
             element.removeAttributeNS("http://www.w3.org/1999/xlink", "href");
             element.setAttribute("href", dataURL);
@@ -371,7 +374,7 @@ class HTMLCanvas {
 
       // Convert and images to data url
       if (elements[i].tagName == "IMG" && elements[i].src.substr(0, 4) != "data") {
-        promises.push(this.getDataURL(elements[i].src).then(((element) => {
+        promises.push(HTMLCanvas.getDataURL(elements[i].src).then(((element) => {
           return dataURL => {
             element.setAttribute("src", dataURL);
           };
@@ -382,7 +385,7 @@ class HTMLCanvas {
       if (elements[i].namespaceURI == "http://www.w3.org/1999/xhtml" && elements[i].hasAttribute("style")) {
         let style = elements[i].getAttribute("style");
         promises.push(
-          this.embedCss(window.location, style).then(((style, element) => {
+          HTMLCanvas.embedCss(window.location, style).then(((style, element) => {
             return (css) => {
               if (style != css) element.setAttribute("style", css);
             }
@@ -394,7 +397,7 @@ class HTMLCanvas {
     let styles = this.html.querySelectorAll("style");
     for (let i = 0; i < styles.length; i++) {
       promises.push(
-        this.embedCss(window.location, styles[i].innerHTML).then(((style) => {
+        HTMLCanvas.embedCss(window.location, styles[i].innerHTML).then(((style) => {
           return (css) => {
             if (style.innerHTML != css) style.innerHTML = css;
           }
@@ -464,7 +467,7 @@ class HTMLCanvas {
   // Set the src to be rendered to the Image
   svgToImg() {
     this.updateFocusBlur();
-    Promise.all([this.embededSVG(), this.generatePageCSS()]).then(() => {
+    Promise.all([this.embededSVG(), HTMLCanvas.generatePageCSS()]).then(() => {
       // Make sure the element is visible before processing
       this.html.style.display = 'block';
       // If embeded html elements dimensions have change then update the canvas
