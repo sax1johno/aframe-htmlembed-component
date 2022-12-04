@@ -99,6 +99,8 @@ class HTMLCanvas {
   static cssgenerated = [];
   /** The text of the css to included in the SVG to render */
   static cssembed = [];
+  /** Cacheable value of modified styles for use in svg generation (including hovering)  */
+  static cssEmbedEncodedCache = null;
 
   onImageLoad() {
     this.render();
@@ -290,6 +292,7 @@ class HTMLCanvas {
 
   // Generate the embed page CSS from all the page styles
   static generatePageCSS() {
+    let msStart = new Date().getMilliseconds();
     // Fine all elements we are intrested in
     let elements = Array.from(document.querySelectorAll(`style , link[type='text/css'], link[rel='stylesheet']`));
     let promises = [];
@@ -325,8 +328,12 @@ class HTMLCanvas {
         }
       }
     }
-
-    return Promise.all(promises);
+    
+    return Promise.all(promises).then((embeddingCauses) => {
+      if (embeddingCauses.length) { //In case new styles were added to the page
+        HTMLCanvas.cssEmbedEncodedCache = encodeURIComponent(HTMLCanvas.cssembed.join(''));
+      }
+    });
   }
 
   /** Generate and returns a dataurl for the given url */
@@ -478,10 +485,14 @@ class HTMLCanvas {
         this.canvas.height = this.height;
         if (this.eventCallback) this.eventCallback('resized'); // Notify a resize has happened
       }
-      let docString = this.serializer.serializeToString(this.html);
+      
       let parent = this.getParents();
-      docString = '<svg width="' + this.width + '" height="' + this.height + '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[a[href]{color:#0000EE;text-decoration:underline;}' + HTMLCanvas.cssembed.join('') + ']]></style></defs><foreignObject x="0" y="0" width="' + this.width + '" height="' + this.height + '">' + parent[0] + docString + parent[1] + '</foreignObject></svg>';
-      this.img.src = "data:image/svg+xml;utf8," + encodeURIComponent(docString);
+      let encoded = encodeURIComponent(`<svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[a[href]{color:#0000EE;text-decoration:underline;}`)
+        + HTMLCanvas.cssEmbedEncodedCache
+        + encodeURIComponent(`]]></style></defs><foreignObject x="0" y="0" width="${this.width}" height="${this.height}">${parent[0] + this.serializer.serializeToString(this.html) + parent[1]}</foreignObject></svg>`);
+
+      this.img.src = "data:image/svg+xml;utf8," + encoded;
+
       // Hide the html after processing
       this.html.style.display = 'none';
     });

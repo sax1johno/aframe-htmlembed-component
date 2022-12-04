@@ -13,6 +13,7 @@ AFRAME.registerSystem(IDENTIFIER, {
   remove: function() {
     HTMLCanvas.cssgenerated = [];
     HTMLCanvas.cssembed = [];
+    HTMLCanvas.cssEmbedEncodedCache = null;
   }
 });
 AFRAME.registerComponent(IDENTIFIER, {
