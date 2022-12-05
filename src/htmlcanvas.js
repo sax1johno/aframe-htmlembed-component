@@ -708,7 +708,9 @@ class HTMLCanvas {
   // result - the final result of the hover target
   checkElement(x, y, offsetx, offsety, offsetz, level, element, result) {
     // Return if this element isn't visible
-    if (!element.offsetParent) return;
+    if (!element.offsetParent) {
+      return;
+    }
 
     let style = window.getComputedStyle(element);
 
@@ -732,7 +734,9 @@ class HTMLCanvas {
     if ((style['display'] == "block" || style['display'] == "inline-block") && style['transform'] != 'none') {
       // Apply css transforms to click point
       let newcoord = this.transformPoint(style, x, y, left, top);
-      if (!newcoord) return;
+      if (!newcoord) {
+        return;
+      }
       x = newcoord[0];
       y = newcoord[1];
       if (zIndex == 'auto') offsetz += 1;
@@ -754,7 +758,7 @@ class HTMLCanvas {
     }
     // Check each of the child elements for intersection of the point
     let child = element.firstChild;
-    if (child)
+    if (!!child) {
       do {
         if (child.nodeType == 1) {
           if (child.offsetParent == element) {
@@ -764,6 +768,7 @@ class HTMLCanvas {
           }
         }
       } while (child = child.nextSibling);
+    }
   }
 
   // Gets the element under the given x,y coordinates

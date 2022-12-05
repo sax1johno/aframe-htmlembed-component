@@ -17,6 +17,7 @@ Repo: https://github.com/arkonsolutions/aframe-htmlembed-component-1.3.0-ready
 * Fixed an issue with performance degradation when multiple menus are added to a scene. Or when adding and hiding the same menu many times.
 * Improved mechanism for releasing unused resources.
 * Reduced time of the first appearance of the menu on the screen (if it is not displayed at startup).
+* Now the touch screen (smartphone) works as well.
 
 # HTML Embed Component
 
