@@ -87,16 +87,15 @@ AFRAME.registerComponent(IDENTIFIER, {
   },
   _onMouseDown: function(evt) {
     if (evt instanceof CustomEvent) {
-      setTimeout(() => {
-        this.htmlcanvas.mousedown(this.lastX, this.lastY);
-      }, 20);
-      
+      this._updateLastCanavasXY();
+      this.htmlcanvas.mousedown(this.lastX, this.lastY);      
     } else {
       evt.stopPropagation();
     }
   },
   _onMouseUp: function(evt) {
     if (evt instanceof CustomEvent) {
+      this._updateLastCanavasXY();
       this.htmlcanvas.mouseup(this.lastX, this.lastY);
     } else {
       evt.stopPropagation();
@@ -116,6 +115,14 @@ AFRAME.registerComponent(IDENTIFIER, {
   },
   tick: function() {
     this.resize();
+    this._updateLastCanavasXY();
+  },
+  remove: function() {
+    this.el.removeObject3D('screen');
+    this.htmlcanvas.cleanUp();
+    this.htmlcanvas = null;
+  },
+  _updateLastCanavasXY: function() {
     if (!this.raycaster) {
       return;
     }
@@ -135,10 +142,5 @@ AFRAME.registerComponent(IDENTIFIER, {
     }
     this.lastX = x;
     this.lastY = y;
-  },
-  remove: function() {
-    this.el.removeObject3D('screen');
-    this.htmlcanvas.cleanUp();
-    this.htmlcanvas = null;
   }
 });
