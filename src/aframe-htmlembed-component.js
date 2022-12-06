@@ -89,7 +89,7 @@ AFRAME.registerComponent(IDENTIFIER, {
     if (evt instanceof CustomEvent) {
       setTimeout(() => {
         this.htmlcanvas.mousedown(this.lastX, this.lastY);
-      }, 30);
+      }, 20);
       
     } else {
       evt.stopPropagation();
@@ -97,9 +97,7 @@ AFRAME.registerComponent(IDENTIFIER, {
   },
   _onMouseUp: function(evt) {
     if (evt instanceof CustomEvent) {
-      setTimeout(() => {
-        this.htmlcanvas.mouseup(this.lastX, this.lastY);
-      }, 30);
+      this.htmlcanvas.mouseup(this.lastX, this.lastY);
     } else {
       evt.stopPropagation();
     }

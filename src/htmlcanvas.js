@@ -866,7 +866,7 @@ class HTMLCanvas {
     this.moveButton = button;
     // Limit frames rate of mouse move for performance
     if (this.moveTimer) return;
-    this.moveTimer = setTimeout(this.moveMouse.bind(this), 20);
+    this.moveTimer = setTimeout(this.moveMouse.bind(this), 15);
   }
 
   // Mouse down on the HTML Element
