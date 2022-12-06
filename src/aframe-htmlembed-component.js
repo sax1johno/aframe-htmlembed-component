@@ -129,6 +129,9 @@ AFRAME.registerComponent(IDENTIFIER, {
 
     let intersection = this.raycaster.components.raycaster.getIntersection(this.el);
     if (!intersection) {
+      if (this.htmlcanvas.overElements.length > 0) {
+        this.htmlcanvas.clearHover();
+      }
       return;
     }
     let localPoint = intersection.point;
