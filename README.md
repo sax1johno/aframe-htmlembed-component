@@ -18,6 +18,7 @@ Repo: https://github.com/arkonsolutions/aframe-htmlembed-component-1.3.0-ready
 * Improved mechanism for releasing unused resources.
 * Reduced time of the first appearance of the menu on the screen (if it is not displayed at startup).
 * Now the touch screen (smartphone) works as well.
+* Fixed WebGL error issue when сhanging HTML after the first display.
 
 # HTML Embed Component
 
