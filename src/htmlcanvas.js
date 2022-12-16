@@ -60,7 +60,8 @@ class HTMLCanvas {
       //html content changed
       let htmlContentChanged = mutationsList.filter(mitm => mitm.type === "childList").length > 0;
       if (!!htmlContentChanged) {
-        this.hashChanged();
+        //trigger for texture recreation
+        this.updateCallback(htmlContentChanged);
         return;
       }
 
