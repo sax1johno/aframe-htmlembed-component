@@ -808,7 +808,7 @@ class HTMLCanvas {
     let ele = this.elementAt(x, y);
     // If the element under cusor isn't the same as lasttime then update hoverstates and fire off events
     if (ele != this.lastEle) {
-      if (ele) {
+      if (ele && !this.checkIsDisabled(ele)) {
         // If the element has a tabIndex then notify of a focusable enter
         if (ele.tabIndex > -1) {
           if (this.eventCallback) this.eventCallback('focusableenter', {
@@ -881,13 +881,17 @@ class HTMLCanvas {
       cancelable: true
     };
     let ele = this.elementAt(x, y);
-    if (ele) {
+    if (ele && !this.checkIsDisabled(ele)) {
       this.activeElement = ele;
       ele.classList.add("activehack");
       ele.classList.remove("hoverhack");
       ele.dispatchEvent(new MouseEvent('mousedown', mouseState));
     }
     this.mousedownElement = ele;
+  }
+
+  checkIsDisabled(ele) {
+    return ele.hasAttribute("disabled");
   }
 
   // Sets the element that currently has focus
@@ -953,13 +957,13 @@ class HTMLCanvas {
     let ele = this.elementAt(x, y);
     if (this.activeElement) {
       this.activeElement.classList.remove("activehack");
-      if(ele){
+      if(ele && !this.checkIsDisabled(ele)){
         ele.classList.add("hoverhack");
         if(this.overElements.indexOf(ele)==-1) this.overElements.push(ele);
       }
       this.activeElement = null;
     }
-    if (ele) {
+    if (ele && !this.checkIsDisabled(ele)) {
       ele.dispatchEvent(new MouseEvent('mouseup', mouseState));
       if (ele != this.focusElement) {
         this.setBlur();
