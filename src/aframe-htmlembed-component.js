@@ -29,13 +29,9 @@ AFRAME.registerComponent(IDENTIFIER, {
     this._onMouseDown = AFRAME.utils.bind(this._onMouseDown, this);
     this._onMouseUp = AFRAME.utils.bind(this._onMouseUp, this);
 
-    let htmlcanvas = new HTMLCanvas(this.el, (needForRecreateTexture = false) => {
-      if (this.texture) {
-        if (needForRecreateTexture) {
-          this._buildTexturedMesh();
-        } else {
-          this.texture.needsUpdate = true;
-        }
+    let htmlcanvas = new HTMLCanvas(this.el, () => {
+      if (!!this.texture) {
+        this.texture.needsUpdate = true;
       }
     }, (event, data) => {
       switch (event) {
@@ -57,7 +53,19 @@ AFRAME.registerComponent(IDENTIFIER, {
       }
     });
     this.htmlcanvas = htmlcanvas;
-    this._buildTexturedMesh();
+    let texture = new THREE.CanvasTexture(this.htmlcanvas.canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true
+    });
+    this.texture = texture;
+    let geometry = new THREE.PlaneGeometry();
+    let screen = new THREE.Mesh(geometry, material);
+    this.el.setObject3D('screen', screen);
+    this.screen = screen;
 
     this.resize();
   },
@@ -140,31 +148,5 @@ AFRAME.registerComponent(IDENTIFIER, {
     }
     this.lastX = x;
     this.lastY = y;
-  },
-  _buildTexturedMesh: function () {
-    this._disposePresentedTexturedMesh();
-    let texture = new THREE.Texture(this.htmlcanvas.canvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true
-    });
-    this.texture = texture;
-    let geometry = new THREE.PlaneGeometry();
-    let screen = new THREE.Mesh(geometry, material);
-    this.el.setObject3D('screen', screen);
-    this.screen = screen;
-  },
-  _disposePresentedTexturedMesh: function() {
-    if (!!this.texture) {
-      this.texture.dispose();
-      this.texture = null;
-    }
-    if (!!this.screen) {
-      this.screen.clear();
-      this.screen = null;
-    }
   }
 });

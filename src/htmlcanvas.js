@@ -57,14 +57,6 @@ class HTMLCanvas {
       // Don't update if we are manipulating DOM for render
       if (this.nowatch) return;
 
-      //html content changed
-      let htmlContentChanged = mutationsList.filter(mitm => mitm.type === "childList").length > 0;
-      if (!!htmlContentChanged) {
-        //trigger for texture recreation
-        this.updateCallback(htmlContentChanged);
-        return;
-      }
-
       for (let i = 0; i < mutationsList.length; i++) {
         // Skip the emebed html element if attributes change
         if (mutationsList[i].target == this.html && mutationsList[i].type == "attributes") continue;
