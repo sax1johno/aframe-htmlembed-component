@@ -4,7 +4,19 @@ if (typeof AFRAME === 'undefined') {
 
 const HTMLCanvas = require('./htmlcanvas.js');
 
-AFRAME.registerComponent('htmlembed', {
+const IDENTIFIER = "htmlembed";
+
+AFRAME.registerSystem(IDENTIFIER, {
+  init: function() {
+    HTMLCanvas.generatePageCSS();
+  },
+  remove: function() {
+    HTMLCanvas.cssgenerated = [];
+    HTMLCanvas.cssembed = [];
+    HTMLCanvas.cssEmbedEncodedCache = null;
+  }
+});
+AFRAME.registerComponent(IDENTIFIER, {
   schema: {
     ppu: {
       type: 'number',
@@ -12,8 +24,15 @@ AFRAME.registerComponent('htmlembed', {
     }
   },
   init: function() {
-    var htmlcanvas = new HTMLCanvas(this.el, () => {
-      if (texture) texture.needsUpdate = true;
+    this._onRaycasterIntersected = AFRAME.utils.bind(this._onRaycasterIntersected, this);
+    this._onRaycasterIntersectedCleared = AFRAME.utils.bind(this._onRaycasterIntersectedCleared, this);
+    this._onMouseDown = AFRAME.utils.bind(this._onMouseDown, this);
+    this._onMouseUp = AFRAME.utils.bind(this._onMouseUp, this);
+
+    let htmlcanvas = new HTMLCanvas(this.el, () => {
+      if (!!this.texture) {
+        this.texture.needsUpdate = true;
+      }
     }, (event, data) => {
       switch (event) {
         case 'resize':
@@ -34,7 +53,7 @@ AFRAME.registerComponent('htmlembed', {
       }
     });
     this.htmlcanvas = htmlcanvas;
-    var texture = new THREE.CanvasTexture(htmlcanvas.canvas);
+    let texture = new THREE.CanvasTexture(this.htmlcanvas.canvas);
     texture.minFilter = THREE.LinearFilter;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -42,33 +61,48 @@ AFRAME.registerComponent('htmlembed', {
       map: texture,
       transparent: true
     });
-    var geometry = new THREE.PlaneGeometry();
-    var screen = new THREE.Mesh(geometry, material);
+    this.texture = texture;
+    let geometry = new THREE.PlaneGeometry();
+    let screen = new THREE.Mesh(geometry, material);
     this.el.setObject3D('screen', screen);
     this.screen = screen;
 
-    this.el.addEventListener('raycaster-intersected', evt => {
-      this.raycaster = evt.detail.el;
-    });
-    this.el.addEventListener('raycaster-intersected-cleared', evt => {
-      this.htmlcanvas.clearHover();
-      this.raycaster = null;
-    });
-    this.el.addEventListener('mousedown', evt => {
-      if (evt instanceof CustomEvent) {
-        this.htmlcanvas.mousedown(this.lastX, this.lastY);
-      } else {
-        evt.stopPropagation();
-      }
-    });
-    this.el.addEventListener('mouseup', evt => {
-      if (evt instanceof CustomEvent) {
-        this.htmlcanvas.mouseup(this.lastX, this.lastY);
-      } else {
-        evt.stopPropagation();
-      }
-    });
     this.resize();
+  },
+  play: function () {
+    this.el.addEventListener('raycaster-intersected', this._onRaycasterIntersected);
+    this.el.addEventListener('raycaster-intersected-cleared', this._onRaycasterIntersectedCleared);
+    this.el.addEventListener('mousedown', this._onMouseDown);
+    this.el.addEventListener('mouseup', this._onMouseUp);
+  },
+  pause: function() {
+    this.el.removeEventListener('raycaster-intersected', this._onRaycasterIntersected);
+    this.el.removeEventListener('raycaster-intersected-cleared', this._onRaycasterIntersectedCleared);
+    this.el.removeEventListener('mousedown', this._onMouseDown);
+    this.el.removeEventListener('mouseup', this._onMouseUp);
+  },
+  _onRaycasterIntersected: function(evt) {
+    this.raycaster = evt.detail.el;
+  },
+  _onRaycasterIntersectedCleared: function(evt) {
+    this.htmlcanvas.clearHover();
+    this.raycaster = null;
+  },
+  _onMouseDown: function(evt) {
+    if (evt instanceof CustomEvent) {
+      this._updateLastCanavasXY();
+      this.htmlcanvas.mousedown(this.lastX, this.lastY);      
+    } else {
+      evt.stopPropagation();
+    }
+  },
+  _onMouseUp: function(evt) {
+    if (evt instanceof CustomEvent) {
+      this._updateLastCanavasXY();
+      this.htmlcanvas.mouseup(this.lastX, this.lastY);
+    } else {
+      evt.stopPropagation();
+    }
   },
   resize() {
     this.width = this.htmlcanvas.width / this.data.ppu;
@@ -84,27 +118,35 @@ AFRAME.registerComponent('htmlembed', {
   },
   tick: function() {
     this.resize();
+    this._updateLastCanavasXY();
+  },
+  remove: function() {
+    this.el.removeObject3D('screen');
+    this.htmlcanvas.cleanUp();
+    this.htmlcanvas = null;
+  },
+  _updateLastCanavasXY: function() {
     if (!this.raycaster) {
       return;
     }
 
-    var intersection = this.raycaster.components.raycaster.getIntersection(this.el);
+    let intersection = this.raycaster.components.raycaster.getIntersection(this.el);
     if (!intersection) {
+      if (this.htmlcanvas.overElements.length > 0) {
+        this.htmlcanvas.clearHover();
+      }
       return;
     }
-    var localPoint = intersection.point;
+    let localPoint = intersection.point;
     this.el.object3D.worldToLocal(localPoint);
-    var w = this.width / 2;
-    var h = this.height / 2;
-    var x = Math.round((localPoint.x + w) / this.width * this.htmlcanvas.canvas.width);
-    var y = Math.round((1 - (localPoint.y + h) / this.height) * this.htmlcanvas.canvas.height);
+    let w = this.width / 2;
+    let h = this.height / 2;
+    let x = Math.round((localPoint.x + w) / this.width * this.htmlcanvas.canvas.width);
+    let y = Math.round((1 - (localPoint.y + h) / this.height) * this.htmlcanvas.canvas.height);
     if (this.lastX != x || this.lastY != y) {
       this.htmlcanvas.mousemove(x, y);
     }
     this.lastX = x;
     this.lastY = y;
-  },
-  remove: function() {
-    this.el.removeObject3D('screen');
   }
 });

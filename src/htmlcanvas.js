@@ -1,8 +1,8 @@
 (function() {
   // We need to set some default styles on form elements for consistency when rendering to canvas
-  var inputStyles = document.createElement("style");
+  let inputStyles = document.createElement("style");
   inputStyles.innerHTML = "input, select,textarea{border: 1px solid #000000;margin: 0;background-color: #ffffff;-webkit-appearance: none;}:-webkit-autofill {color: #fff !important;}input[type='checkbox']{width: 20px;height: 20px;display: inline-block;}input[type='radio']{width: 20px;height: 20px;display: inline-block;border-radius: 50%;}input[type='checkbox'][checked],input[type='radio'][checked]{background-color: #555555;}a-entity[htmlembed] img{display:inline-block}a-entity[htmlembed]{display:none}";
-  var head = document.querySelector("head");
+  let head = document.querySelector("head");
   head.insertBefore(inputStyles, head.firstChild);
 })();
 
@@ -12,6 +12,10 @@ class HTMLCanvas {
 
     this.updateCallback = updateCallback;
     this.eventCallback = eventCallback;
+
+    this.onImageLoad = this.onImageLoad.bind(this);
+    this.onMouseMoveHtml = this.onMouseMoveHtml.bind(this);
+    this.onHashChangeEvent = this.onHashChangeEvent.bind(this);
 
     // Create the canvas to be drawn to
     this.canvas = document.createElement("canvas");
@@ -29,17 +33,8 @@ class HTMLCanvas {
     this.html.style.overflow = 'hidden';
 
 
-    // We have to stop propergation of the mouse at the root of the embed HTML otherwise it may effect other elements of the page
-    this.mousemovehtml = (e) => {
-      e.stopPropagation();
-    }
-    this.html.addEventListener('mousemove', this.mousemovehtml);
-
-    // We need to change targethack when windows has location changes
-    this.hashChangeEvent = () => {
-      this.hashChanged();
-    }
-    window.addEventListener('hashchange', this.hashChangeEvent, false);
+    this.html.addEventListener('mousemove', this.onMouseMoveHtml);
+    window.addEventListener('hashchange', this.onHashChangeEvent, false);
 
 
     this.overElements = []; // Element currently in the hover state
@@ -49,28 +44,26 @@ class HTMLCanvas {
     // Image used to draw SVG to the canvas element
     this.img = new Image;
     // When image content has changed render it to the canvas
-    this.img.addEventListener("load", () => {
-      this.render();
-    });
+    this.img.addEventListener("load", this.onImageLoad);
 
     // Add css hacks to current styles to ensure that the styles can be rendered to canvas
-    this.csshack();
+    HTMLCanvas.csshack();
 
     // Timer used to limit the re-renders due to DOM updates
-    var timer;
+    let timer;
 
     // Setup the mutation observer
-    var callback = (mutationsList, observer) => {
+    let callback = (mutationsList, observer) => {
       // Don't update if we are manipulating DOM for render
       if (this.nowatch) return;
 
-      for (var i = 0; i < mutationsList.length; i++) {
+      for (let i = 0; i < mutationsList.length; i++) {
         // Skip the emebed html element if attributes change
         if (mutationsList[i].target == this.html && mutationsList[i].type == "attributes") continue;
 
         // If a class changes has no style change then there is no need to rerender
         if (!mutationsList[i].target.styleRef || mutationsList[i].attributeName == "class") {
-          var styleRef = this.csssig(mutationsList[i].target);
+          let styleRef = this.csssig(mutationsList[i].target);
           if (mutationsList[i].target.styleRef == styleRef) {
             continue;
           }
@@ -87,21 +80,37 @@ class HTMLCanvas {
       }
     };
 
-    var config = {
+    let config = {
       attributes: true,
       childList: true,
       subtree: true
     };
-    var observer = new MutationObserver(callback);
+    let observer = new MutationObserver(callback);
     observer.observe(this.html, config);
     this.observer = observer;
-
-    this.cssgenerated = []; // Remeber what css sheets have already been passed
-    this.cssembed = []; // The text of the css to included in the SVG to render
 
     this.serializer = new XMLSerializer();
 
     // Trigger an initially hash change to set up targethack classes
+    this.hashChanged();
+  }
+
+  /** Remeber what css sheets have already been passed */
+  static cssgenerated = [];
+  /** The text of the css to included in the SVG to render */
+  static cssembed = [];
+  /** Cacheable value of modified styles for use in svg generation (including hovering)  */
+  static cssEmbedEncodedCache = null;
+
+  onImageLoad() {
+    this.render();
+  }
+  /**  We have to stop propergation of the mouse at the root of the embed HTML otherwise it may effect other elements of the page */
+  onMouseMoveHtml(e) {
+    e.stopPropagation();
+  }
+  /** We need to change targethack when windows has location changes */
+  onHashChangeEvent() {
     this.hashChanged();
   }
 
@@ -117,12 +126,12 @@ class HTMLCanvas {
   hashChanged() {
     if (window.clearedHash != window.location.hash) {
       Array.from(document.querySelectorAll('*')).map((ele) => ele.classCache = {});
-      var currentTarget = document.querySelector('.targethack');
+      let currentTarget = document.querySelector('.targethack');
       if (currentTarget) {
         currentTarget.classList.remove('targethack');
       }
       if (window.location.hash) {
-        var newTarget = document.querySelector(window.location.hash);
+        let newTarget = document.querySelector(window.location.hash);
         if (newTarget) {
           newTarget.classList.add('targethack');
         }
@@ -138,47 +147,66 @@ class HTMLCanvas {
     this.observer.disconnect();
 
     // Remove event listeners
-    window.removeEventListener('hashchange', this.hashChangeEvent, );
-    this.html.addEventListener('mousemove', this.mousrmovehtml);
+    window.removeEventListener('hashchange', this.onHashChangeEvent );
+    this.html.removeEventListener('mousemove', this.onMouseMoveHtml);
+    this.img.removeEventListener("load", this.onImageLoad);
+
+    this.canvas.remove();
   }
 
-  // Add hack css rules to the page so they will update the css styles of the embed html
-  csshack() {
-    var sheets = document.styleSheets;
-    for (var i = 0; i < sheets.length; i++) {
-      try {
-        var rules = sheets[i].cssRules;
-        var toadd = [];
-        for (var j = 0; j < rules.length; j++) {
-          if (rules[j].cssText.indexOf(':hover') > -1) {
-            toadd.push(rules[j].cssText.replace(new RegExp(":hover", "g"), ".hoverhack"))
+  static regexpHover = new RegExp(":hover", "g");
+  static regexpActive = new RegExp(":active", "g");
+  static regexpFocus = new RegExp(":focus", "g");
+  static regexpTarget = new RegExp(":target", "g");
+
+  /** Add hack css rules to the page so they will update the css styles of the embed html */
+  static csshack() {
+    let sheets = document.styleSheets;
+    for (let i = 0; i < sheets.length; i++) {
+
+      let hacksAlreadyApplied = !!Array.from(sheets[i].cssRules).find(r => {
+        return !!r.selectorText && (r.selectorText.indexOf(".hoverhack") > -1
+          || r.selectorText.indexOf(".activehack") > -1
+          || r.selectorText.indexOf(".focushack") > -1
+          || r.selectorText.indexOf(".targethack") > -1);
+      });
+
+      if (!hacksAlreadyApplied) {
+        try {
+          let rules = sheets[i].cssRules;
+          let toadd = [];
+          for (let j = 0; j < rules.length; j++) {
+            if (rules[j].cssText.indexOf(':hover') > -1) {
+              toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpHover, ".hoverhack"))
+            }
+            if (rules[j].cssText.indexOf(':active') > -1) {
+              toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpActive, ".activehack"))
+            }
+            if (rules[j].cssText.indexOf(':focus') > -1) {
+              toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpFocus, ".focushack"))
+            }
+            if (rules[j].cssText.indexOf(':target') > -1) {
+              toadd.push(rules[j].cssText.replace(HTMLCanvas.regexpTarget, ".targethack"))
+            }
+            let idx = toadd.indexOf(rules[j].cssText);
+            if (idx > -1) {
+              toadd.splice(idx, 1);
+            }
           }
-          if (rules[j].cssText.indexOf(':active') > -1) {
-            toadd.push(rules[j].cssText.replace(new RegExp(":active", "g"), ".activehack"))
+          for (let j = 0; j < toadd.length; j++) {
+            sheets[i].insertRule(toadd[j]);
           }
-          if (rules[j].cssText.indexOf(':focus') > -1) {
-            toadd.push(rules[j].cssText.replace(new RegExp(":focus", "g"), ".focushack"))
-          }
-          if (rules[j].cssText.indexOf(':target') > -1) {
-            toadd.push(rules[j].cssText.replace(new RegExp(":target", "g"), ".targethack"))
-          }
-          var idx = toadd.indexOf(rules[j].cssText);
-          if (idx > -1) {
-            toadd.splice(idx, 1);
-          }
-        }
-        for (var j = 0; j < toadd.length; j++) {
-          sheets[i].insertRule(toadd[j]);
-        }
-      } catch (e) {}
+        } catch (e) {}
+      }
+      
     }
   }
 
   // Simple hash function used for style signature
   dbj2(text) {
-    var hash = 5381,
+    let hash = 5381,
       c;
-    for (var i = 0; i < text.length; i++) {
+    for (let i = 0; i < text.length; i++) {
       c = text.charCodeAt(i);
       hash = ((hash << 5) + hash) + c;
     }
@@ -189,9 +217,9 @@ class HTMLCanvas {
   csssig(el) {
     if (!el.classCache) el.classCache = {};
     if (!el.classCache[el.className]) {
-      var styles = getComputedStyle(el);
-      var style = "";
-      for (var i = 0; i < styles.length; i++) {
+      let styles = getComputedStyle(el);
+      let style = "";
+      for (let i = 0; i < styles.length; i++) {
         style += styles[styles[i]];
       }
       el.classCache[el.className] = this.dbj2(style);
@@ -199,35 +227,38 @@ class HTMLCanvas {
     return el.classCache[el.className];
   }
 
-  // Does what it says on the tin
-  arrayBufferToBase64(bytes) {
-    var binary = '';
-    var len = bytes.byteLength;
-    for (var i = 0; i < len; i++) {
+  /** Does what it says on the tin */
+  static arrayBufferToBase64(bytes) {
+    let binary = '';
+    let len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
     return window.btoa(binary);
   }
 
-  // Get an embeded version of the css for use in img svg
-  // url - baseref of css so we know where to look up resourses
-  // css - string content of the css
-  embedCss(url, css) {
+  /**
+   * Get an embeded version of the css for use in img svg
+   * @param {*} url baseref of css so we know where to look up resourses
+   * @param {*} css string content of the css
+   * @returns 
+   */
+  static embedCss(url, css) {
     return new Promise(resolve => {
-      var found;
-      var promises = [];
+      let found;
+      let promises = [];
 
       // Add hacks to get selectors working on img
-      css = css.replace(new RegExp(":hover", "g"), ".hoverhack");
-      css = css.replace(new RegExp(":active", "g"), ".activehack");
-      css = css.replace(new RegExp(":focus", "g"), ".focushack");
-      css = css.replace(new RegExp(":target", "g"), ".targethack");
+      css = css.replace(HTMLCanvas.regexpHover, ".hoverhack");
+      css = css.replace(HTMLCanvas.regexpActive, ".activehack");
+      css = css.replace(HTMLCanvas.regexpFocus, ".focushack");
+      css = css.replace(HTMLCanvas.regexpTarget, ".targethack");
 
       // Replace all urls in the css
       const regEx = RegExp(/url\((?!['"]?(?:data):)['"]?([^'"\)]*)['"]?\)/gi);
       while (found = regEx.exec(css)) {
         promises.push(
-          this.getDataURL(new URL(found[1], url)).then(((found) => {
+          HTMLCanvas.getDataURL(new URL(found[1], url)).then(((found) => {
             return url => {
               css = css.replace(found[1], url);
             };
@@ -240,11 +271,11 @@ class HTMLCanvas {
     });
   }
 
-  // Does what is says on the tin
-  getURL(url) {
+  /** Does what is says on the tin */
+  static getURL(url) {
     url = (new URL(url, window.location)).href;
     return new Promise(resolve => {
-      var xhr = new XMLHttpRequest();
+      let xhr = new XMLHttpRequest();
 
       xhr.open('GET', url, true);
 
@@ -260,34 +291,35 @@ class HTMLCanvas {
   }
 
   // Generate the embed page CSS from all the page styles
-  generatePageCSS() {
+  static generatePageCSS() {
+    let msStart = new Date().getMilliseconds();
     // Fine all elements we are intrested in
-    var elements = Array.from(document.querySelectorAll("style, link[type='text/css'],link[rel='stylesheet']"));
-    var promises = [];
-    for (var i = 0; i < elements.length; i++) {
-      var element = elements[i];
-      if (this.cssgenerated.indexOf(element) == -1) {
+    let elements = Array.from(document.querySelectorAll(`style , link[type='text/css'], link[rel='stylesheet']`));
+    let promises = [];
+    for (let i = 0; i < elements.length; i++) {
+      let element = elements[i];
+      if (HTMLCanvas.cssgenerated.indexOf(element) == -1) {
         // Make sure all css hacks have been applied to the page
-        this.csshack();
+        HTMLCanvas.csshack();
         // Get embed version of style elements
-        var idx = this.cssgenerated.length;
-        this.cssgenerated.push(element);
+        let idx = HTMLCanvas.cssgenerated.length;
+        HTMLCanvas.cssgenerated.push(element);
         if (element.tagName == "STYLE") {
           promises.push(
-            this.embedCss(window.location, element.innerHTML).then(((element, idx) => {
+            HTMLCanvas.embedCss(window.location, element.innerHTML).then(((element, idx) => {
               return css => {
-                this.cssembed[idx] = css;
+                HTMLCanvas.cssembed[idx] = css;
               }
             })(element, idx))
           );
         } else {
           // Get embeded version of externally link stylesheets
-          promises.push(this.getURL(element.getAttribute("href")).then(((idx) => {
+          promises.push(HTMLCanvas.getURL(element.getAttribute("href")).then(((idx) => {
             return xhr => {
-              var css = new TextDecoder("utf-8").decode(xhr.response);
-              return this.embedCss(window.location, css).then(((element, idx) => {
+              let css = new TextDecoder("utf-8").decode(xhr.response);
+              return HTMLCanvas.embedCss(window.location, css).then(((element, idx) => {
                 return css => {
-                  this.cssembed[idx] = css;
+                  HTMLCanvas.cssembed[idx] = css;
                 }
               })(element, idx))
             };
@@ -296,29 +328,34 @@ class HTMLCanvas {
         }
       }
     }
-    return Promise.all(promises);
+    
+    return Promise.all(promises).then((embeddingCauses) => {
+      if (embeddingCauses.length) { //In case new styles were added to the page
+        HTMLCanvas.cssEmbedEncodedCache = encodeURIComponent(HTMLCanvas.cssembed.join(''));
+      }
+    });
   }
 
-  // Generate and returns a dataurl for the given url
-  getDataURL(url) {
+  /** Generate and returns a dataurl for the given url */
+  static getDataURL(url) {
     return new Promise(resolve => {
-      this.getURL(url).then(xhr => {
-        var arr = new Uint8Array(xhr.response);
-        var contentType = xhr.getResponseHeader("Content-Type").split(";")[0];
+      HTMLCanvas.getURL(url).then(xhr => {
+        let arr = new Uint8Array(xhr.response);
+        let contentType = xhr.getResponseHeader("Content-Type").split(";")[0];
         if (contentType == "text/css") {
-          var css = new TextDecoder("utf-8").decode(arr);
-          this.embedCss(url, css).then((css) => {
-            var base64 = window.btoa(css);
+          let css = new TextDecoder("utf-8").decode(arr);
+          HTMLCanvas.embedCss(url, css).then((css) => {
+            let base64 = window.btoa(css);
             if (base64.length > 0) {
-              var dataURL = 'data:' + contentType + ';base64,' + base64;
+              let dataURL = 'data:' + contentType + ';base64,' + base64;
               resolve(dataURL);
             } else {
               resolve('');
             }
           });
         } else {
-          var b64 = this.arrayBufferToBase64(arr);
-          var dataURL = 'data:' + contentType + ';base64,' + b64;
+          let b64 = HTMLCanvas.arrayBufferToBase64(arr);
+          let dataURL = 'data:' + contentType + ';base64,' + b64;
           resolve(dataURL);
         }
       });
@@ -327,14 +364,14 @@ class HTMLCanvas {
 
   // Embeds and externally linked elements for rendering to img
   embededSVG() {
-    var promises = [];
-    var elements = this.html.querySelectorAll("*");
-    for (var i = 0; i < elements.length; i++) {
+    let promises = [];
+    let elements = this.html.querySelectorAll("*");
+    for (let i = 0; i < elements.length; i++) {
 
       // convert and xlink:href to standard href
-      var link = elements[i].getAttributeNS("http://www.w3.org/1999/xlink", "href");
+      let link = elements[i].getAttributeNS("http://www.w3.org/1999/xlink", "href");
       if (link) {
-        promises.push(this.getDataURL(link).then(((element) => {
+        promises.push(HTMLCanvas.getDataURL(link).then(((element) => {
           return dataURL => {
             element.removeAttributeNS("http://www.w3.org/1999/xlink", "href");
             element.setAttribute("href", dataURL);
@@ -344,7 +381,7 @@ class HTMLCanvas {
 
       // Convert and images to data url
       if (elements[i].tagName == "IMG" && elements[i].src.substr(0, 4) != "data") {
-        promises.push(this.getDataURL(elements[i].src).then(((element) => {
+        promises.push(HTMLCanvas.getDataURL(elements[i].src).then(((element) => {
           return dataURL => {
             element.setAttribute("src", dataURL);
           };
@@ -353,9 +390,9 @@ class HTMLCanvas {
 
       // If there is a style attribute make sure external references are converted to dataurl
       if (elements[i].namespaceURI == "http://www.w3.org/1999/xhtml" && elements[i].hasAttribute("style")) {
-        var style = elements[i].getAttribute("style");
+        let style = elements[i].getAttribute("style");
         promises.push(
-          this.embedCss(window.location, style).then(((style, element) => {
+          HTMLCanvas.embedCss(window.location, style).then(((style, element) => {
             return (css) => {
               if (style != css) element.setAttribute("style", css);
             }
@@ -364,10 +401,10 @@ class HTMLCanvas {
       }
     }
     // If there are any inline style within the embeded html make sure they have the selector hacks
-    var styles = this.html.querySelectorAll("style");
-    for (var i = 0; i < styles.length; i++) {
+    let styles = this.html.querySelectorAll("style");
+    for (let i = 0; i < styles.length; i++) {
       promises.push(
-        this.embedCss(window.location, styles[i].innerHTML).then(((style) => {
+        HTMLCanvas.embedCss(window.location, styles[i].innerHTML).then(((style) => {
           return (css) => {
             if (style.innerHTML != css) style.innerHTML = css;
           }
@@ -379,9 +416,9 @@ class HTMLCanvas {
 
   // Override elements focus and blur functions as these do not perform as expected when embeded html is not being directly displayed
   updateFocusBlur() {
-    var allElements = this.html.querySelectorAll("*");
-    for (var i = 0; i < allElements.length; i++) {
-      var element = allElements[i];
+    let allElements = this.html.querySelectorAll("*");
+    for (let i = 0; i < allElements.length; i++) {
+      let element = allElements[i];
       if (element.tabIndex > -1) {
         if (!element.hasOwnProperty('focus')) {
           element.focus = ((element) => {
@@ -402,26 +439,30 @@ class HTMLCanvas {
 
   // Get all parents of the embeded html as these can effect the resulting styles
   getParents() {
-    var opens = [];
-    var closes = [];
-    var parent = this.html.parentNode;
-    do {
-      var tag = parent.tagName.toLowerCase();
-      if (tag.substr(0, 2) == 'a-') tag = 'div'; // We need to replace A-Frame tags with div as they're not valid xhtml so mess up the rendering of images
-      var open = '<' + (tag == 'body' ? 'body xmlns="http://www.w3.org/1999/xhtml"' : tag) + ' style="transform: none;left: 0;top: 0;position:static;display: block" class="' + parent.className + '"' + (parent.id ? ' id="' + parent.id + '"' : '') + '>';
-      opens.unshift(open);
-      var close = '</' + tag + '>';
-      closes.push(close);
-      if (tag == 'body') break;
-    } while (parent = parent.parentNode)
+    let opens = [];
+    let closes = [];
+    let parent = this.html.parentNode;
+    
+    if (!!parent) {
+      do {
+        let tag = parent.tagName.toLowerCase();
+        if (tag.substr(0, 2) == 'a-') tag = 'div'; // We need to replace A-Frame tags with div as they're not valid xhtml so mess up the rendering of images
+        let open = '<' + (tag == 'body' ? 'body xmlns="http://www.w3.org/1999/xhtml"' : tag) + ' style="transform: none;left: 0;top: 0;position:static;display: block" class="' + parent.className + '"' + (parent.id ? ' id="' + parent.id + '"' : '') + '>';
+        opens.unshift(open);
+        let close = '</' + tag + '>';
+        closes.push(close);
+        if (tag == 'body') break;
+      } while (parent = parent.parentNode)
+    }
+    
     return [opens.join(''), closes.join('')];
   }
 
   // If an element is checked make sure it has a checked attribute so it renders to the canvas
   updateCheckedAttributes() {
-    var inputElements = this.html.getElementsByTagName("input");
-    for (var i = 0; i < inputElements.length; i++) {
-      var element = inputElements[i];
+    let inputElements = this.html.getElementsByTagName("input");
+    for (let i = 0; i < inputElements.length; i++) {
+      let element = inputElements[i];
       if (element.hasAttribute("checked")) {
         if (!element.checked) element.removeAttribute("checked");
       } else {
@@ -433,7 +474,7 @@ class HTMLCanvas {
   // Set the src to be rendered to the Image
   svgToImg() {
     this.updateFocusBlur();
-    Promise.all([this.embededSVG(), this.generatePageCSS()]).then(() => {
+    Promise.all([this.embededSVG(), HTMLCanvas.generatePageCSS()]).then(() => {
       // Make sure the element is visible before processing
       this.html.style.display = 'block';
       // If embeded html elements dimensions have change then update the canvas
@@ -444,10 +485,14 @@ class HTMLCanvas {
         this.canvas.height = this.height;
         if (this.eventCallback) this.eventCallback('resized'); // Notify a resize has happened
       }
-      var docString = this.serializer.serializeToString(this.html);
-      var parent = this.getParents();
-      docString = '<svg width="' + this.width + '" height="' + this.height + '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[a[href]{color:#0000EE;text-decoration:underline;}' + this.cssembed.join('') + ']]></style></defs><foreignObject x="0" y="0" width="' + this.width + '" height="' + this.height + '">' + parent[0] + docString + parent[1] + '</foreignObject></svg>';
-      this.img.src = "data:image/svg+xml;utf8," + encodeURIComponent(docString);
+      
+      let parent = this.getParents();
+      let encoded = encodeURIComponent(`<svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[a[href]{color:#0000EE;text-decoration:underline;}`)
+        + HTMLCanvas.cssEmbedEncodedCache
+        + encodeURIComponent(`]]></style></defs><foreignObject x="0" y="0" width="${this.width}" height="${this.height}">${parent[0] + this.serializer.serializeToString(this.html) + parent[1]}</foreignObject></svg>`);
+
+      this.img.src = "data:image/svg+xml;utf8," + encoded;
+
       // Hide the html after processing
       this.html.style.display = 'none';
     });
@@ -466,10 +511,10 @@ class HTMLCanvas {
   // Transforms a point into an elements frame of reference
   transformPoint(elementStyles, x, y, offsetX, offsetY) {
     // Get the elements tranform matrix
-    var transformcss = elementStyles["transform"];
+    let transformcss = elementStyles["transform"];
     if (transformcss.indexOf("matrix(") == 0) {
-      var transform = new THREE.Matrix4();
-      var mat = transformcss.substring(7, transformcss.length - 1).split(", ").map(parseFloat);
+      let transform = new THREE.Matrix4();
+      let mat = transformcss.substring(7, transformcss.length - 1).split(", ").map(parseFloat);
       transform.elements[0] = mat[0];
       transform.elements[1] = mat[1];
       transform.elements[4] = mat[2];
@@ -477,24 +522,24 @@ class HTMLCanvas {
       transform.elements[12] = mat[4];
       transform.elements[13] = mat[5];
     } else if (transformcss.indexOf("matrix3d(") == 0) {
-      var transform = new THREE.Matrix4();
-      var mat = transformcss.substring(9, transformcss.length - 1).split(", ").map(parseFloat);
+      let transform = new THREE.Matrix4();
+      let mat = transformcss.substring(9, transformcss.length - 1).split(", ").map(parseFloat);
       transform.elements = mat;
     } else {
       return [x, y, z]
     }
     // Get the elements tranform origin
-    var origincss = elementStyles["transform-origin"];
+    let origincss = elementStyles["transform-origin"];
     origincss = origincss.replace(new RegExp("px", "g"), "").split(" ").map(parseFloat);
 
     // Apply the transform to the origin
-    var ox = offsetX + origincss[0];
-    var oy = offsetY + origincss[1];
-    var oz = 0;
+    let ox = offsetX + origincss[0];
+    let oy = offsetY + origincss[1];
+    let oz = 0;
     if (origincss[2]) oz += origincss[2];
 
-    var T1 = new THREE.Matrix4().makeTranslation(-ox, -oy, -oz);
-    var T2 = new THREE.Matrix4().makeTranslation(ox, oy, oz);
+    let T1 = new THREE.Matrix4().makeTranslation(-ox, -oy, -oz);
+    let T2 = new THREE.Matrix4().makeTranslation(ox, oy, oz);
 
     transform = T2.multiply(transform).multiply(T1)
     
@@ -502,14 +547,14 @@ class HTMLCanvas {
     if(transform.determinant()!=0) return [x,y];
     
     // Inverse the transform so we can go from page space to element space
-    var inverse = new THREE.Matrix4().getInverse(transform);
+    let inverse = new THREE.Matrix4().getInverse(transform);
 
     // Calculate a ray in the direction of the plane
-    var v1 = new THREE.Vector3(x, y, 0);
-    var v2 = new THREE.Vector3(x, y, -1);
+    let v1 = new THREE.Vector3(x, y, 0);
+    let v2 = new THREE.Vector3(x, y, -1);
     v1.applyMatrix4(inverse);
     v2.applyMatrix4(inverse);
-    var dir = v2.sub(v1).normalize();
+    let dir = v2.sub(v1).normalize();
 
     // If ray is parallel to the plane then there is no intersection
     if (dir.z == 0) {
@@ -517,21 +562,21 @@ class HTMLCanvas {
     }
 
     // Get the point of intersection on the element plane
-    var result = dir.multiplyScalar(-v1.z / dir.z).add(v1);
+    let result = dir.multiplyScalar(-v1.z / dir.z).add(v1);
 
     return [result.x, result.y];
   }
 
   // Get the absolute border radii for each corner
   getBorderRadii(element, style) {
-    var properties = ['border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius'];
-    var result;
+    let properties = ['border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius'];
+    let result;
     // Parse the css results
-    var corners = [];
-    for (var i = 0; i < properties.length; i++) {
-      var borderRadiusString = style[properties[i]];
-      var reExp = /(\d*)([a-z%]{1,3})/gi;
-      var rec = [];
+    let corners = [];
+    for (let i = 0; i < properties.length; i++) {
+      let borderRadiusString = style[properties[i]];
+      let reExp = /(\d*)([a-z%]{1,3})/gi;
+      let rec = [];
       while (result = reExp.exec(borderRadiusString)) {
         rec.push({
           value: result[1],
@@ -549,32 +594,34 @@ class HTMLCanvas {
     };
 
     // Convert all corners into pixels
-    var pixelCorners = [];
-    for (var i = 0; i < corners.length; i++) {
-      var corner = corners[i];
-      var rec = []
-      for (var j = 0; j < corner.length; j++) {
+    let pixelCorners = [];
+    for (let i = 0; i < corners.length; i++) {
+      let corner = corners[i];
+      let rec = []
+      for (let j = 0; j < corner.length; j++) {
         rec.push(corner[j].value * unitConv[corner[j].unit]);
       }
       pixelCorners.push(rec);
     }
 
     // Initial corner point scales
-    var c1scale = 1;
-    var c2scale = 1;
-    var c3scale = 1;
-    var c4scale = 1;
+    let c1scale = 1;
+    let c2scale = 1;
+    let c3scale = 1;
+    let c4scale = 1;
+
+    let f;
 
     // Change scales of top left and top right corners based on offsetWidth
-    var borderTop = pixelCorners[0][0] + pixelCorners[1][0];
+    let borderTop = pixelCorners[0][0] + pixelCorners[1][0];
     if (borderTop > element.offsetWidth) {
-      var f = 1 / borderTop * element.offsetWidth;
+      f = 1 / borderTop * element.offsetWidth;
       c1scale = Math.min(c1scale, f);
       c2scale = Math.min(c2scale, f);
     }
 
     // Change scales of bottom right and top right corners based on offsetHeight
-    var borderLeft = pixelCorners[1][1] + pixelCorners[2][1];
+    let borderLeft = pixelCorners[1][1] + pixelCorners[2][1];
     if (borderLeft > element.offsetHeight) {
       f = 1 / borderLeft * element.offsetHeight;
       c3scale = Math.min(c3scale, f);
@@ -582,7 +629,7 @@ class HTMLCanvas {
     }
 
     // Change scales of bottom left and bottom right corners based on offsetWidth
-    var borderBottom = pixelCorners[2][0] + pixelCorners[3][0];
+    let borderBottom = pixelCorners[2][0] + pixelCorners[3][0];
     if (borderBottom > element.offsetWidth) {
       f = 1 / borderBottom * element.offsetWidth;
       c3scale = Math.min(c3scale, f);
@@ -590,7 +637,7 @@ class HTMLCanvas {
     }
 
     // Change scales of bottom left and top right corners based on offsetHeight
-    var borderRight = pixelCorners[0][1] + pixelCorners[3][1];
+    let borderRight = pixelCorners[0][1] + pixelCorners[3][1];
     if (borderRight > element.offsetHeight) {
       f = 1 / borderRight * element.offsetHeight;
       c1scale = Math.min(c1scale, f);
@@ -613,38 +660,38 @@ class HTMLCanvas {
   // Check that the element is with the confines of rounded corners
   checkInBorder(element, style, x, y, left, top) {
     if (style['border-radius'] == "0px") return true;
-    var width = element.offsetWidth;
-    var height = element.offsetHeight;
-    var corners = this.getBorderRadii(element, style);
+    let width = element.offsetWidth;
+    let height = element.offsetHeight;
+    let corners = this.getBorderRadii(element, style);
 
     // Check top left corner
     if (x < corners[0][0] + left && y < corners[0][1] + top) {
-      var x1 = (corners[0][0] + left - x) / corners[0][0];
-      var y1 = (corners[0][1] + top - y) / corners[0][1];
+      let x1 = (corners[0][0] + left - x) / corners[0][0];
+      let y1 = (corners[0][1] + top - y) / corners[0][1];
       if (x1 * x1 + y1 * y1 > 1) {
         return false;
       }
     }
     // Check top right corner
     if (x > left + width - corners[1][0] && y < corners[1][1] + top) {
-      var x1 = (x - (left + width - corners[1][0])) / corners[1][0];
-      var y1 = (corners[1][1] + top - y) / corners[1][1];
+      let x1 = (x - (left + width - corners[1][0])) / corners[1][0];
+      let y1 = (corners[1][1] + top - y) / corners[1][1];
       if (x1 * x1 + y1 * y1 > 1) {
         return false;
       }
     }
     // Check bottom right corner
     if (x > left + width - corners[2][0] && y > top + height - corners[2][1]) {
-      var x1 = (x - (left + width - corners[2][0])) / corners[2][0];
-      var y1 = (y - (top + height - corners[2][1])) / corners[2][1];
+      let x1 = (x - (left + width - corners[2][0])) / corners[2][0];
+      let y1 = (y - (top + height - corners[2][1])) / corners[2][1];
       if (x1 * x1 + y1 * y1 > 1) {
         return false;
       }
     }
     // Check bottom left corner
     if (x < corners[3][0] + left && y > top + height - corners[3][1]) {
-      var x1 = (corners[3][0] + left - x) / corners[3][0];
-      var y1 = (y - (top + height - corners[3][1])) / corners[3][1];
+      let x1 = (corners[3][0] + left - x) / corners[3][0];
+      let y1 = (y - (top + height - corners[3][1])) / corners[3][1];
       if (x1 * x1 + y1 * y1 > 1) {
         return false;
       }
@@ -661,17 +708,19 @@ class HTMLCanvas {
   // result - the final result of the hover target
   checkElement(x, y, offsetx, offsety, offsetz, level, element, result) {
     // Return if this element isn't visible
-    if (!element.offsetParent) return;
+    if (!element.offsetParent) {
+      return;
+    }
 
-    var style = window.getComputedStyle(element);
+    let style = window.getComputedStyle(element);
 
     // Calculate absolute position and dimensions
-    var left = element.offsetLeft + offsetx;
-    var top = element.offsetTop + offsety;
-    var width = element.offsetWidth;
-    var height = element.offsetHeight;
+    let left = element.offsetLeft + offsetx;
+    let top = element.offsetTop + offsety;
+    let width = element.offsetWidth;
+    let height = element.offsetHeight;
 
-    var zIndex = style['z-index'];
+    let zIndex = style['z-index'];
     if (zIndex != 'auto') {
       offsetz = 0;
       level = parseInt(zIndex);
@@ -684,8 +733,10 @@ class HTMLCanvas {
     // If there is a transform then transform point
     if ((style['display'] == "block" || style['display'] == "inline-block") && style['transform'] != 'none') {
       // Apply css transforms to click point
-      var newcoord = this.transformPoint(style, x, y, left, top);
-      if (!newcoord) return;
+      let newcoord = this.transformPoint(style, x, y, left, top);
+      if (!newcoord) {
+        return;
+      }
       x = newcoord[0];
       y = newcoord[1];
       if (zIndex == 'auto') offsetz += 1;
@@ -706,8 +757,8 @@ class HTMLCanvas {
       return;
     }
     // Check each of the child elements for intersection of the point
-    var child = element.firstChild;
-    if (child)
+    let child = element.firstChild;
+    if (!!child) {
       do {
         if (child.nodeType == 1) {
           if (child.offsetParent == element) {
@@ -717,12 +768,13 @@ class HTMLCanvas {
           }
         }
       } while (child = child.nextSibling);
+    }
   }
 
   // Gets the element under the given x,y coordinates
   elementAt(x, y) {
     this.html.style.display = 'block';
-    var result = {
+    let result = {
       zIndex: 0,
       ele: null,
       level: 0
@@ -734,10 +786,10 @@ class HTMLCanvas {
 
   // Process a movment of the mouse
   moveMouse() {
-    var x = this.moveX;
-    var y = this.moveY;
-    var button = this.moveButton;
-    var mouseState = {
+    let x = this.moveX;
+    let y = this.moveY;
+    let button = this.moveButton;
+    let mouseState = {
       screenX: x,
       screenY: y,
       clientX: x,
@@ -746,17 +798,17 @@ class HTMLCanvas {
       bubbles: true,
       cancelable: true
     };
-    var mouseStateHover = {
+    let mouseStateHover = {
       clientX: x,
       clientY: y,
       button: button ? button : 0,
       bubbles: false
     };
 
-    var ele = this.elementAt(x, y);
+    let ele = this.elementAt(x, y);
     // If the element under cusor isn't the same as lasttime then update hoverstates and fire off events
     if (ele != this.lastEle) {
-      if (ele) {
+      if (ele && !this.checkIsDisabled(ele)) {
         // If the element has a tabIndex then notify of a focusable enter
         if (ele.tabIndex > -1) {
           if (this.eventCallback) this.eventCallback('focusableenter', {
@@ -769,8 +821,8 @@ class HTMLCanvas {
             target: this.lastEle
           });
         }
-        var parents = [];
-        var current = ele;
+        let parents = [];
+        let current = ele;
         if (this.lastEle) this.lastEle.dispatchEvent(new MouseEvent('mouseout', mouseState));
         ele.dispatchEvent(new MouseEvent('mouseover', mouseState));
         // Update overElements and fire corresponding events
@@ -784,9 +836,9 @@ class HTMLCanvas {
           parents.push(current);
         } while (current = current.parentNode);
 
-        for (var i = 0; i < this.overElements.length; i++) {
-          var element = this.overElements[i];
-          if (parents.indexOf(element) == -1) {
+        for (let i = 0; i < this.overElements.length; i++) {
+          let element = this.overElements[i];
+          if (!!element && parents.indexOf(element) == -1) {
             if (element.classList) element.classList.remove("hoverhack");
             element.dispatchEvent(new MouseEvent('mouseleave', mouseStateHover));
             this.overElements.splice(i, 1);
@@ -794,6 +846,7 @@ class HTMLCanvas {
           }
         }
       } else {
+        let element;
         while (element = this.overElements.pop()) {
           if (element.classList) element.classList.remove("hoverhack");
           element.dispatchEvent(new MouseEvent('mouseout', mouseState));
@@ -818,7 +871,7 @@ class HTMLCanvas {
 
   // Mouse down on the HTML Element
   mousedown(x, y, button) {
-    var mouseState = {
+    let mouseState = {
       screenX: x,
       screenY: y,
       clientX: x,
@@ -827,14 +880,18 @@ class HTMLCanvas {
       bubbles: true,
       cancelable: true
     };
-    var ele = this.elementAt(x, y);
-    if (ele) {
+    let ele = this.elementAt(x, y);
+    if (ele && !this.checkIsDisabled(ele)) {
       this.activeElement = ele;
       ele.classList.add("activehack");
       ele.classList.remove("hoverhack");
       ele.dispatchEvent(new MouseEvent('mousedown', mouseState));
     }
     this.mousedownElement = ele;
+  }
+
+  checkIsDisabled(ele) {
+    return ele.hasAttribute("disabled");
   }
 
   // Sets the element that currently has focus
@@ -866,7 +923,7 @@ class HTMLCanvas {
       clearTimeout(this.moveTimer);
       this.moveTimer = false;
     }
-    var element;
+    let element;
     while (element = this.overElements.pop()) {
       if (element.classList) element.classList.remove("hoverhack");
       element.dispatchEvent(new MouseEvent('mouseout', {
@@ -879,7 +936,7 @@ class HTMLCanvas {
       cancelable: true
     }));
     this.lastEle = null;
-    var activeElement = document.querySelector(".activeElement");
+    let activeElement = document.querySelector(".activeElement");
     if (activeElement) {
       activeElement.classList.remove("activehack");
       this.activeElement = null;
@@ -888,7 +945,7 @@ class HTMLCanvas {
 
   // Mouse up on the HTML Element
   mouseup(x, y, button) {
-    var mouseState = {
+    let mouseState = {
       screenX: x,
       screenY: y,
       clientX: x,
@@ -897,16 +954,16 @@ class HTMLCanvas {
       bubbles: true,
       cancelable: true
     };
-    var ele = this.elementAt(x, y);
+    let ele = this.elementAt(x, y);
     if (this.activeElement) {
       this.activeElement.classList.remove("activehack");
-      if(ele){
+      if(ele && !this.checkIsDisabled(ele)){
         ele.classList.add("hoverhack");
         if(this.overElements.indexOf(ele)==-1) this.overElements.push(ele);
       }
       this.activeElement = null;
     }
-    if (ele) {
+    if (ele && !this.checkIsDisabled(ele)) {
       ele.dispatchEvent(new MouseEvent('mouseup', mouseState));
       if (ele != this.focusElement) {
         this.setBlur();
